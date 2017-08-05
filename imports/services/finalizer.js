@@ -2,6 +2,7 @@ import { Meteor } from 'meteor/meteor';
 import { check } from 'meteor/check';
 import { _ } from 'meteor/underscore';
 
+import { TopicSchema } from '/imports/collections/topic.schema';
 import { MeetingSeriesSchema } from '/imports/collections/meetingseries.schema';
 import { MinutesSchema } from '/imports/collections/minutes.schema';
 import { Minutes } from '/imports/minutes';
@@ -144,14 +145,12 @@ Meteor.methods({
         // first we copy the topics of the finalize-minute to the parent series
         let parentSeries = minutes.parentMeetingSeries();
         finalizeLastMinutes(parentSeries);
-        let msAffectedDocs = MeetingSeriesSchema.update(
-            parentSeries._id,
-            {$set: {topics: parentSeries.topics, openTopics: parentSeries.openTopics}});
 
-        const atLeastOneTopicExists = parentSeries.openTopics.length !== 0 || parentSeries.topics.length !== 0;
-        if (msAffectedDocs !== 1 && atLeastOneTopicExists) {
-            throw new Meteor.Error('runtime-error', 'Unknown error occurred when updating topics of parent series');
-        }
+        // todo: update only the documents which have changed ?!
+        parentSeries.topics.forEach(topic => {
+            topic.parentId = parentSeries._id;
+            TopicSchema.upsert({ _id: topic._id }, topic);
+        });
 
         // then we tag the minute as finalized
         let version = minutes.finalizedVersion + 1 || 1;
